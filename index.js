@@ -1130,9 +1130,16 @@ async function startGame(source, start = false) {
 
     const attachment = new AttachmentBuilder(image, { name: 'wheel.gif' });
 
+    const spinMessage = await source.channel
+      .send({ files: [attachment] })
+      .catch(console.error);
+
+    const spinDuration = 5; // seconds to allow animation to finish
+    await sleep(spinDuration);
+
     if (players.length <= 2) {
-      await source.channel
-        .send({
+      await spinMessage
+        .edit({
           content: `**${winnerOption.user.buttonNumber} - <@${winnerOption.user.user}> **\n:crown: هذه هي الجولة الأخيرة! اللاعب المختار هو الفائز في اللعبة.`,
           files: [attachment],
         })
@@ -1141,16 +1148,15 @@ async function startGame(source, start = false) {
       await cleanUpGame(guildId);
       return;
     } else {
-      const message = await source.channel
-        .send({
+      await spinMessage
+        .edit({
           content: `**${winnerOption.user.buttonNumber} - <@${winnerOption.user.user}> **\n⏰ | لديك ${chooseTimeout} ثانية لاختيار لاعب للطرد`,
           files: [attachment],
           components: kickButtonPages[0],
         })
         .catch(console.error);
-
       savedData.pagination = {
-        messageId: message.id,
+        messageId: spinMessage.id,
         page: 0,
         totalPages: kickButtonPages.length,
         buttonsType: 'kick',

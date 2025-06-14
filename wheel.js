@@ -135,11 +135,11 @@ module.exports.createWheel = async (data, userAvatar) => {
 
   const encoder = new GIFEncoder(canvas.width, canvas.height);
   encoder.start();
-  encoder.setRepeat(0);
-  encoder.setDelay(50);
+  encoder.setRepeat(-1); // play once
+  encoder.setDelay(75); // slower animation
   encoder.setQuality(10);
 
-  const frames = 40;
+  const frames = 60; // more frames for smoother, slower spin
   const angleStep = (2 * Math.PI) / data.length;
   const finalAngle = -angleStep / 2;
   const startAngle = finalAngle + Math.PI * 2 * 3;

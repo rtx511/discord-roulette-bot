@@ -23,7 +23,7 @@ const {
   allowedRoleId,
   prefix,
 } = require('./config.json');
-const { createWheel } = require('./wheel.js');
+const { createWheel, createWheelGif } = require('./wheel.js');
 
 const client = new Client({
   intents: [
@@ -1081,6 +1081,7 @@ async function startGame(source, start = false) {
     savedData.winner = { id: winnerOption.user.user, until: time };
     await Games.set(guildId, savedData);
     const image = await createWheel(options, winnerOption.user.avatar);
+    const gif = await createWheelGif(options, winnerOption.user.avatar, 40, 2, 120);
 
     const kickablePlayers = players.filter(user => user.user !== winnerOption.user.user);
 
@@ -1129,86 +1130,93 @@ async function startGame(source, start = false) {
     ];
 
     const attachment = new AttachmentBuilder(image, { name: 'wheel.png' });
+    const gifAttachment = new AttachmentBuilder(gif, { name: 'wheel.gif' });
 
-    if (players.length <= 2) {
-      await source.channel
-        .send({
-          content: `**${winnerOption.user.buttonNumber} - <@${winnerOption.user.user}> **\n:crown: هذه هي الجولة الأخيرة! اللاعب المختار هو الفائز في اللعبة.`,
+    const message = await source.channel
+      .send({ content: 'جاري تدوير العجلة...', files: [gifAttachment] })
+      .catch(console.error);
+
+    const spinDuration = 40 * 120;
+
+    setTimeout(async () => {
+      try {
+        await message.edit({
+          content:
+            players.length <= 2
+              ? `**${winnerOption.user.buttonNumber} - <@${winnerOption.user.user}> **\n:crown: هذه هي الجولة الأخيرة! اللاعب المختار هو الفائز في اللعبة.`
+              : `**${winnerOption.user.buttonNumber} - <@${winnerOption.user.user}> **\n⏰ | لديك ${chooseTimeout} ثانية لاختيار لاعب للطرد`,
           files: [attachment],
-        })
-        .catch(console.error);
+          components: players.length <= 2 ? [] : kickButtonPages[0],
+        });
 
-      await cleanUpGame(guildId);
-      return;
-    } else {
-      const message = await source.channel
-        .send({
-          content: `**${winnerOption.user.buttonNumber} - <@${winnerOption.user.user}> **\n⏰ | لديك ${chooseTimeout} ثانية لاختيار لاعب للطرد`,
-          files: [attachment],
-          components: kickButtonPages[0],
-        })
-        .catch(console.error);
-
-      savedData.pagination = {
-        messageId: message.id,
-        page: 0,
-        totalPages: kickButtonPages.length,
-        buttonsType: 'kick',
-        buttons: kickButtons,
-      };
-      savedData.actionButtons = actionButtons;
-      await Games.set(guildId, savedData);
-
-      const actionRows = createActionRowFromButtons(actionButtons);
-
-      const actionMessage = await source.channel.send({
-        content: `**خيارات إضافية لـ <@${winnerOption.user.user}> **`,
-        components: actionRows,
-      });
-
-      savedData.actionMessageId = actionMessage.id;
-      await Games.set(guildId, savedData);
-
-      setTimeout(async () => {
-        try {
-          const checkUser = await Games.get(guildId);
-          if (
-            checkUser &&
-            checkUser.winner.id === winnerOption.user.user &&
-            Date.now() >= checkUser.winner.until
-          ) {
-            checkUser.players = checkUser.players.filter(
-              player => player.user !== winnerOption.user.user,
-            );
-            checkUser.winner.id = '';
-
-            await Games.set(guildId, checkUser);
-
-            source.channel
-              .send(
-                `⏰ | <@${winnerOption.user.user}> تم طرده من اللعبة بسبب انتهاء الوقت. ستبدأ الجولة التالية قريبًا...`,
-              )
-              .catch(console.error);
-
-            await startGame(source).catch(console.error);
-          }
-        } catch (error) {
-          console.error('Error during timeout handling:', error);
+        if (players.length <= 2) {
+          await cleanUpGame(guildId);
+          return;
         }
-      }, chooseTimeout * 1000);
-    }
 
-    if (currentPlayer.frozen) {
-      currentPlayer.frozen = false;
-      await Games.set(guildId, savedData);
-    }
+        savedData.pagination = {
+          messageId: message.id,
+          page: 0,
+          totalPages: kickButtonPages.length,
+          buttonsType: 'kick',
+          buttons: kickButtons,
+        };
+        savedData.actionButtons = actionButtons;
+        await Games.set(guildId, savedData);
 
-    savedData.players.forEach(player => {
-      if (player.shield) {
-        player.shield = false;
+        const actionRows = createActionRowFromButtons(actionButtons);
+        const actionMessage = await source.channel.send({
+          content: `**خيارات إضافية لـ <@${winnerOption.user.user}> **`,
+          components: actionRows,
+        });
+
+        savedData.actionMessageId = actionMessage.id;
+        await Games.set(guildId, savedData);
+
+        setTimeout(async () => {
+          try {
+            const checkUser = await Games.get(guildId);
+            if (
+              checkUser &&
+              checkUser.winner.id === winnerOption.user.user &&
+              Date.now() >= checkUser.winner.until
+            ) {
+              checkUser.players = checkUser.players.filter(
+                player => player.user !== winnerOption.user.user,
+              );
+              checkUser.winner.id = '';
+
+              await Games.set(guildId, checkUser);
+
+              source.channel
+                .send(
+                  `⏰ | <@${winnerOption.user.user}> تم طرده من اللعبة بسبب انتهاء الوقت. ستبدأ الجولة التالية قريبًا...`,
+                )
+                .catch(console.error);
+
+              await startGame(source).catch(console.error);
+            }
+          } catch (error) {
+            console.error('Error during timeout handling:', error);
+          }
+        }, chooseTimeout * 1000);
+
+        if (currentPlayer.frozen) {
+          currentPlayer.frozen = false;
+          await Games.set(guildId, savedData);
+        }
+
+        savedData.players.forEach(player => {
+          if (player.shield) {
+            player.shield = false;
+          }
+        });
+        await Games.set(guildId, savedData);
+      } catch (error) {
+        console.error('Error showing wheel result:', error);
       }
-    });
-    await Games.set(guildId, savedData);
+    }, spinDuration);
+
   } catch (error) {
     console.error('Error during game execution:', error);
     source.channel

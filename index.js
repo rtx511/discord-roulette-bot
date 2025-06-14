@@ -1080,7 +1080,7 @@ async function startGame(source, start = false) {
     const time = Date.now() + chooseTimeout * 1000;
     savedData.winner = { id: winnerOption.user.user, until: time };
     await Games.set(guildId, savedData);
-    const image = await createWheel(options, winnerOption.user.avatar);
+    const { gif: gifBuffer, png: pngBuffer } = await createWheel(options);
 
     const kickablePlayers = players.filter(user => user.user !== winnerOption.user.user);
 
@@ -1128,29 +1128,36 @@ async function startGame(source, start = false) {
         .setStyle(ButtonStyle.Danger),
     ];
 
-    const attachment = new AttachmentBuilder(image, { name: 'wheel.png' });
+    const gifAttachment = new AttachmentBuilder(gifBuffer, { name: 'wheel.gif' });
+    const pngAttachment = new AttachmentBuilder(pngBuffer, { name: 'wheel.png' });
+
+    const spinMessage = await source.channel
+      .send({ files: [gifAttachment] })
+      .catch(console.error);
+
+    const spinDuration = 5; // seconds to allow animation to finish
+    await sleep(spinDuration);
 
     if (players.length <= 2) {
-      await source.channel
-        .send({
+      await spinMessage
+        .edit({
           content: `**${winnerOption.user.buttonNumber} - <@${winnerOption.user.user}> **\n:crown: هذه هي الجولة الأخيرة! اللاعب المختار هو الفائز في اللعبة.`,
-          files: [attachment],
+          files: [pngAttachment],
         })
         .catch(console.error);
 
       await cleanUpGame(guildId);
       return;
     } else {
-      const message = await source.channel
-        .send({
+      await spinMessage
+        .edit({
           content: `**${winnerOption.user.buttonNumber} - <@${winnerOption.user.user}> **\n⏰ | لديك ${chooseTimeout} ثانية لاختيار لاعب للطرد`,
-          files: [attachment],
+          files: [pngAttachment],
           components: kickButtonPages[0],
         })
         .catch(console.error);
-
       savedData.pagination = {
-        messageId: message.id,
+        messageId: spinMessage.id,
         page: 0,
         totalPages: kickButtonPages.length,
         buttonsType: 'kick',

@@ -1,5 +1,6 @@
 const { join } = require('path');
 const { createCanvas, loadImage, registerFont } = require('canvas');
+const GIFEncoder = require('gifencoder');
 
 registerFont(join(__dirname, 'assets', 'Poppins', 'Poppins-Bold.ttf'), {
   family: 'PoppinsBold',
@@ -115,8 +116,8 @@ module.exports.createSpinWheel = async (data, returnCanvas) => {
   return canvas.toBuffer('image/png');
 };
 
-module.exports.createWheel = async (data, userAvatar) => {
-  const winnerIndex = data.findIndex((item) => item.winner);
+module.exports.createWheel = async data => {
+  const winnerIndex = data.findIndex(item => item.winner);
 
   const rotatedData = data.slice(winnerIndex).concat(data.slice(0, winnerIndex));
 
@@ -129,65 +130,99 @@ module.exports.createWheel = async (data, userAvatar) => {
   const outerRadius = 450;
   const innerRadius = 100;
 
-  ctx.save();
-  ctx.translate(centerX, centerY);
-  const angleStep = (2 * Math.PI) / data.length;
-  ctx.rotate(-angleStep / 2);
-  ctx.drawImage(spinwheel, -centerX, -centerY);
-  ctx.restore();
-
-  ctx.beginPath();
-  ctx.arc(centerX, centerY, outerRadius + 20, 0, 2 * Math.PI, false);
-  ctx.lineWidth = 10;
-  ctx.strokeStyle = '#FFD700';
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
-  ctx.shadowBlur = 10;
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-
-  ctx.beginPath();
-  ctx.arc(centerX, centerY, innerRadius - 10, 0, 2 * Math.PI, false);
-  ctx.lineWidth = 5;
-  ctx.strokeStyle = '#FFD700';
-  ctx.stroke();
-
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(centerX, centerY, innerRadius - 15, 0, 2 * Math.PI, false);
-  ctx.fillStyle = '#333333';
-  ctx.fill();
-  ctx.clip();
-
-  const userImage = await loadImageWithFallback(userAvatar);
-  ctx.drawImage(
-    userImage,
-    centerX - (innerRadius - 15),
-    centerY - (innerRadius - 15),
-    (innerRadius - 15) * 2,
-    (innerRadius - 15) * 2
+  const avatars = await Promise.all(
+    rotatedData.map(opt => loadImageWithFallback(opt.user.avatar)),
   );
-  ctx.restore();
-
-  ctx.beginPath();
-  ctx.arc(centerX, centerY, innerRadius - 15, 0, 2 * Math.PI, false);
-  ctx.lineWidth = 5;
-  ctx.strokeStyle = '#FFD700';
-  ctx.stroke();
-
-  ctx.shadowColor = 'transparent';
-  ctx.shadowBlur = 0;
-  ctx.shadowOffsetX = 0;
-  ctx.shadowOffsetY = 0;
-
   const pointer = await loadImage(join(__dirname, 'assets', 'pointer.png'));
 
-  ctx.save();
-  ctx.translate(centerX, centerY - outerRadius - 40);
-  ctx.drawImage(pointer, -40, -40, 80, 80);
-  ctx.restore();
+  const encoder = new GIFEncoder(canvas.width, canvas.height);
+  encoder.start();
+  encoder.setRepeat(-1); // play once
+  encoder.setDelay(75); // slower animation
+  encoder.setQuality(10);
 
-  return canvas.toBuffer('image/png');
+  const frames = 60; // more frames for smoother, slower spin
+  const angleStep = (2 * Math.PI) / data.length;
+  const finalAngle = -angleStep / 2;
+  const startAngle = finalAngle + Math.PI * 2 * 3;
+
+  let finalBuffer;
+
+  for (let i = 0; i <= frames; i++) {
+    const t = i / frames;
+    const angle = startAngle - (startAngle - finalAngle) * easeOutCubic(t);
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    ctx.save();
+    ctx.translate(centerX, centerY);
+    ctx.rotate(angle);
+    ctx.drawImage(spinwheel, -centerX, -centerY);
+    ctx.restore();
+
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, outerRadius + 20, 0, 2 * Math.PI, false);
+    ctx.lineWidth = 10;
+    ctx.strokeStyle = '#FFD700';
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+    ctx.shadowBlur = 10;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, innerRadius - 10, 0, 2 * Math.PI, false);
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = '#FFD700';
+    ctx.stroke();
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, innerRadius - 15, 0, 2 * Math.PI, false);
+    ctx.fillStyle = '#333333';
+    ctx.fill();
+    ctx.clip();
+
+    const pointerIndex =
+      Math.floor((startAngle - angle) / angleStep) % rotatedData.length;
+    const avatar = avatars[pointerIndex];
+
+    ctx.drawImage(
+      avatar,
+      centerX - (innerRadius - 15),
+      centerY - (innerRadius - 15),
+      (innerRadius - 15) * 2,
+      (innerRadius - 15) * 2,
+    );
+    ctx.restore();
+
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, innerRadius - 15, 0, 2 * Math.PI, false);
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = '#FFD700';
+    ctx.stroke();
+
+    ctx.save();
+    ctx.translate(centerX, centerY - outerRadius - 40);
+    ctx.drawImage(pointer, -40, -40, 80, 80);
+    ctx.restore();
+
+    encoder.addFrame(ctx);
+
+    if (i === frames) {
+      finalBuffer = canvas.toBuffer('image/png');
+    }
+  }
+
+  encoder.finish();
+  return {
+    gif: encoder.out.getData(),
+    png: finalBuffer,
+  };
 };
+
+function easeOutCubic(t) {
+  return 1 - Math.pow(1 - t, 3);
+}
 
 function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
   const words = text.split(' ');

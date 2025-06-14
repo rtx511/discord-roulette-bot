@@ -1128,7 +1128,7 @@ async function startGame(source, start = false) {
         .setStyle(ButtonStyle.Danger),
     ];
 
-    const attachment = new AttachmentBuilder(image, { name: 'wheel.png' });
+    const attachment = new AttachmentBuilder(image, { name: 'wheel.gif' });
 
     if (players.length <= 2) {
       await source.channel

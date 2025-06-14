@@ -1080,7 +1080,7 @@ async function startGame(source, start = false) {
     const time = Date.now() + chooseTimeout * 1000;
     savedData.winner = { id: winnerOption.user.user, until: time };
     await Games.set(guildId, savedData);
-    const image = await createWheel(options, winnerOption.user.avatar);
+    const { gif: gifBuffer, png: pngBuffer } = await createWheel(options);
 
     const kickablePlayers = players.filter(user => user.user !== winnerOption.user.user);
 
@@ -1128,10 +1128,11 @@ async function startGame(source, start = false) {
         .setStyle(ButtonStyle.Danger),
     ];
 
-    const attachment = new AttachmentBuilder(image, { name: 'wheel.gif' });
+    const gifAttachment = new AttachmentBuilder(gifBuffer, { name: 'wheel.gif' });
+    const pngAttachment = new AttachmentBuilder(pngBuffer, { name: 'wheel.png' });
 
     const spinMessage = await source.channel
-      .send({ files: [attachment] })
+      .send({ files: [gifAttachment] })
       .catch(console.error);
 
     const spinDuration = 5; // seconds to allow animation to finish
@@ -1141,7 +1142,7 @@ async function startGame(source, start = false) {
       await spinMessage
         .edit({
           content: `**${winnerOption.user.buttonNumber} - <@${winnerOption.user.user}> **\n:crown: هذه هي الجولة الأخيرة! اللاعب المختار هو الفائز في اللعبة.`,
-          files: [attachment],
+          files: [pngAttachment],
         })
         .catch(console.error);
 
@@ -1151,7 +1152,7 @@ async function startGame(source, start = false) {
       await spinMessage
         .edit({
           content: `**${winnerOption.user.buttonNumber} - <@${winnerOption.user.user}> **\n⏰ | لديك ${chooseTimeout} ثانية لاختيار لاعب للطرد`,
-          files: [attachment],
+          files: [pngAttachment],
           components: kickButtonPages[0],
         })
         .catch(console.error);

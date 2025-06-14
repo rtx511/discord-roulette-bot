@@ -116,8 +116,8 @@ module.exports.createSpinWheel = async (data, returnCanvas) => {
   return canvas.toBuffer('image/png');
 };
 
-module.exports.createWheel = async (data, userAvatar) => {
-  const winnerIndex = data.findIndex((item) => item.winner);
+module.exports.createWheel = async data => {
+  const winnerIndex = data.findIndex(item => item.winner);
 
   const rotatedData = data.slice(winnerIndex).concat(data.slice(0, winnerIndex));
 
@@ -130,7 +130,9 @@ module.exports.createWheel = async (data, userAvatar) => {
   const outerRadius = 450;
   const innerRadius = 100;
 
-  const userImage = await loadImageWithFallback(userAvatar);
+  const avatars = await Promise.all(
+    rotatedData.map(opt => loadImageWithFallback(opt.user.avatar)),
+  );
   const pointer = await loadImage(join(__dirname, 'assets', 'pointer.png'));
 
   const encoder = new GIFEncoder(canvas.width, canvas.height);
@@ -143,6 +145,8 @@ module.exports.createWheel = async (data, userAvatar) => {
   const angleStep = (2 * Math.PI) / data.length;
   const finalAngle = -angleStep / 2;
   const startAngle = finalAngle + Math.PI * 2 * 3;
+
+  let finalBuffer;
 
   for (let i = 0; i <= frames; i++) {
     const t = i / frames;
@@ -178,12 +182,16 @@ module.exports.createWheel = async (data, userAvatar) => {
     ctx.fill();
     ctx.clip();
 
+    const pointerIndex =
+      Math.floor((startAngle - angle) / angleStep) % rotatedData.length;
+    const avatar = avatars[pointerIndex];
+
     ctx.drawImage(
-      userImage,
+      avatar,
       centerX - (innerRadius - 15),
       centerY - (innerRadius - 15),
       (innerRadius - 15) * 2,
-      (innerRadius - 15) * 2
+      (innerRadius - 15) * 2,
     );
     ctx.restore();
 
@@ -199,10 +207,17 @@ module.exports.createWheel = async (data, userAvatar) => {
     ctx.restore();
 
     encoder.addFrame(ctx);
+
+    if (i === frames) {
+      finalBuffer = canvas.toBuffer('image/png');
+    }
   }
 
   encoder.finish();
-  return encoder.out.getData();
+  return {
+    gif: encoder.out.getData(),
+    png: finalBuffer,
+  };
 };
 
 function easeOutCubic(t) {

@@ -115,6 +115,31 @@ discord-roulette-bot/
 - **utils.js**: Contains utility functions for creating button rows and handling interactions.
 - **wheel.js**: Logic for creating and drawing the roulette wheel.
 
+## Mining Phase Extraction
+
+The repository includes a small Python utility located in `scripts/mining_phase.py`
+for preparing a systematic review "Mining Phase" spreadsheet. The script expects a
+deduplicated CSV or Excel file of references and outputs an Excel sheet with the
+following columns:
+
+1. **Study ID** (auto-generated `M001`, `M002`, ...)
+2. **Title**
+3. **DOI/PubMed ID**
+4. **Year of publication**
+5. **Clinical vs Preclinical**
+6. **Study Type**
+7. **Review Focus Area**
+8. **Intervention Type**
+9. **Outcome Reported?**
+
+Run the script with:
+
+```bash
+python scripts/mining_phase.py <input_file> <output_file>
+```
+
+The output Excel file will contain the cleaned and formatted mining phase data.
+
 ## Contributing
 
 Contributions are welcome! Please follow these steps:
